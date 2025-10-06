@@ -11,3 +11,5 @@ venv/
 
 # Ignore OS junk files
 .DS_Store
+
+docker-compose.yml
