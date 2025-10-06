@@ -1,1 +1,13 @@
-DbConnector.py
+# Ignore local environment and config
+.env
+
+# Ignore Python cache and compiled files
+__pycache__/
+*.pyc
+
+# Ignore virtual environments
+.venv/
+venv/
+
+# Ignore OS junk files
+.DS_Store
