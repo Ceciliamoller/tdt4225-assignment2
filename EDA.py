@@ -16,6 +16,139 @@ print("=" * 80)
 print(f"Total rows: {len(df)}")
 print(f"Total columns: {len(df.columns)}")
 
+## TRIP_ID: Unique identier for each trip. 
+
+# --- Basic info about TRIP_ID ---
+n_rows = len(df)
+n_unique = df["TRIP_ID"].nunique()
+n_duplicates = df["TRIP_ID"].duplicated().sum()
+n_missing = df["TRIP_ID"].isna().sum()
+
+# --- Create a small DataFrame summary ---
+trip_id_summary = pd.DataFrame({
+    "Total Rows": [n_rows],
+    "Unique TRIP_IDs": [n_unique],
+    "Duplicate TRIP_IDs": [n_duplicates],
+    "Missing TRIP_IDs": [n_missing],
+    "Is Unique?": ["Yes" if n_unique == n_rows else "No"]
+})
+
+# --- Print nice table ---
+print("\n=== TRIP_ID ===")
+print(tabulate(trip_id_summary, headers="keys", tablefmt="psql", showindex=False))
+
+
+## CALL_TYPE: Code indicating how the trip was initiated. 
+
+# --- 1. Inspect unique values and counts
+# --- 1. Inspect unique values and counts
+call_counts = df["CALL_TYPE"].value_counts(dropna=False)
+call_percent = df["CALL_TYPE"].value_counts(normalize=True, dropna=False) * 100
+missing_calltype = df["CALL_TYPE"].isna().sum()
+
+call_summary = pd.DataFrame({
+    "Count": call_counts,
+    "Percent": call_percent.round(2)
+}).reset_index().rename(columns={"index": "CALL_TYPE"})
+
+# Add a summary row for missing values
+missing_row = pd.DataFrame([{
+    "CALL_TYPE": "Missing (NaN)",
+    "Count": missing_calltype,
+    "Percent": round(missing_calltype / len(df) * 100, 3)
+}])
+
+call_summary = pd.concat([call_summary, missing_row], ignore_index=True)
+
+print("\n=== CALL_TYPE ===")
+print(tabulate(call_summary, headers="keys", tablefmt="psql", showindex=False))
+
+# --- 2. Visualize the distribution
+sns.countplot(x="CALL_TYPE", data=df, palette="pastel")
+plt.title("Distribution of CALL_TYPE")
+plt.xlabel("Call Type (A=dispatch, B=stand, C=street pickup)")
+plt.ylabel("Number of Trips")
+plt.show(block=False)
+plt.pause(2)   # keep it visible for 2 seconds
+plt.close()
+
+
+## ORIGIN_CALL: ID of the client who initiated the call 
+# (only set when CALL_TYPE = ‘A’). Otherwise NULL.  --> # origin_call = # (call_type = 'A') = 364770
+
+# --- 1. Check for missing values
+missing_origin_call = df["ORIGIN_CALL"].isna().sum()
+duplicate_origin_call = df["ORIGIN_CALL"].duplicated().sum()
+non_missing_origin_call = len(df) - missing_origin_call
+total_call_type_a = (df["CALL_TYPE"] == "A").sum()
+
+# --- 3. Create a clear summary table
+summary = pd.DataFrame({
+    "Total Rows": [len(df)],
+    "Non-Missing Values": [non_missing_origin_call],
+    "Missing Values": [missing_origin_call],
+    "Duplicates": [duplicate_origin_call],
+    "CALL_TYPE = 'A' Trips": [total_call_type_a],
+})
+
+print("\n=== ORIGIN_CALL ===")
+print(tabulate(summary, headers="keys", tablefmt="psql", showindex=False))
+
+## ORIGIN_STAND: Taxi stand ID where the trip started (only set when CALL_TYPE = ‘B’). Otherwise NULL.
+
+# --- 1. Basic stats
+missing_origin_stand = df["ORIGIN_STAND"].isna().sum()
+duplicate_origin_stand = df["ORIGIN_STAND"].duplicated().sum()
+non_missing_origin_stand = len(df) - missing_origin_stand
+total_call_type_b = (df["CALL_TYPE"] == "B").sum()
+
+summary_stand = pd.DataFrame({
+    "Total Rows": [len(df)],
+    "Non-Missing Values": [non_missing_origin_stand],
+    "Missing Values": [missing_origin_stand],
+    "Duplicates": [duplicate_origin_stand],
+    "CALL_TYPE = 'B' Trips": [total_call_type_b]
+    })
+
+print("\n=== ORIGIN_STAND ===")
+print(tabulate(summary_stand, headers="keys", tablefmt="psql", showindex=False))
+
+
+
+## TAXI_ID: Unique identier of the taxi performing the trip. The same taxi may appear in many trips. 
+
+# --- TAXI_ID basic info ---
+total_taxis = df["TAXI_ID"].nunique()
+total_rows = len(df)
+missing_taxi = df["TAXI_ID"].isna().sum()
+trips_per_taxi = df["TAXI_ID"].value_counts()
+total_trips_counted = trips_per_taxi.sum()
+
+print("\n=== TAXI_ID ===")
+print(f"• Total trips: {total_rows:,}")
+print(f"• Sum of trips across taxis: {total_trips_counted:,}")
+print(f"• Unique taxis: {total_taxis:,}")
+print(f"• Missing TAXI_ID values: {missing_taxi:,}")
+print(f"• Average trips per taxi: {trips_per_taxi.mean():.1f}")
+print(f"• Most active taxi made {trips_per_taxi.max()} trips")
+print(f"• Least active taxi made {trips_per_taxi.min()} trips")
+
+# --- Visualize distribution ---
+sns.histplot(trips_per_taxi, bins=50, kde=False)
+plt.title("Distribution of Trips per Taxi")
+plt.xlabel("Number of trips")
+plt.ylabel("Count of taxis")
+plt.show()
+
+
+
+
+
+
+
+
+
+
 """ # 1. Undersøk alle kolonner
 print("\n=== COLUMN INFORMATION ===")
 info_data = []
@@ -168,3 +301,7 @@ other_stats = [
     ["NULL ORIGIN_STANDs", df["ORIGIN_STAND"].isnull().sum()],
 ]
 print(tabulate(other_stats, headers=["Metric", "Count"], tablefmt="grid")) """
+
+
+# TRIP_ID — Trip Identifier
+df["TRIP_ID"].duplicated().sum()
