@@ -16,7 +16,7 @@ class DbConnector:
     def __init__(self,
                  HOST="localhost",
                  DATABASE="assignment_2",
-                 USER="sarakos",
+                 USER="justlb",
                  PASSWORD="sarakos"): # used to be 3306
         # Connect to the database
         try:
