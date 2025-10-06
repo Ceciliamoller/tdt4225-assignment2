@@ -141,11 +141,107 @@ plt.ylabel("Count of taxis")
 plt.show()
 
 
+## TIMESTAMP: Start time of the trip, expressed as Unix time (seconds since 1970-01-01). 
+## Should be converted to a standard DATETIME format for queries.
+
+
+print("\n=== TIMESTAMP Attribute Analysis ===")
+
+# --- 1. Basic checks ---
+print("• Data type:", df["TIMESTAMP"].dtype)
+print(f"• Missing values: {df['TIMESTAMP'].isna().sum():,}")
+
+# --- 2. Convert to datetime for exploration ---
+# to_datetime does the same thing as MySQL’s FROM_UNIXTIME() (from linked pdf))
+df["DATETIME"] = pd.to_datetime(df["TIMESTAMP"], unit="s", errors="coerce")
+
+# --- 3. Check conversion success ---
+num_failed = df["DATETIME"].isna().sum()
+print(f"• Conversion errors : {num_failed:,}")
+
+# --- 4. Range check ---
+min_time, max_time = df["DATETIME"].min(), df["DATETIME"].max()
+print(f"• Earliest trip: {min_time}")
+print(f"• Latest trip:   {max_time}")
+
+# --- 5. Extract features ---
+df["hour"] = df["DATETIME"].dt.hour
+df["weekday"] = df["DATETIME"].dt.day_name()
+
+# --- 6. Print summary stats ---
+trip_range_days = (max_time - min_time).days
+print(f"• Time span covered: {trip_range_days:,} days")
+print(f"• Unique hours present: {df['hour'].nunique()}")
+print(f"• Unique weekdays present: {df['weekday'].nunique()}")
+
+# --- 7. Summaries per hour and weekday ---
+hour_counts = df["hour"].value_counts().sort_index()
+weekday_counts = df["weekday"].value_counts()
+
+# --- 8. Visualize trips per hour ---
+plt.figure(figsize=(8,4))
+sns.countplot(x="hour", data=df, color="lightblue")
+plt.title("Distribution of Trips by Hour of Day")
+plt.xlabel("Hour of Day (0–23)")
+plt.ylabel("Number of Trips")
+plt.tight_layout()
+plt.show()
+
+# --- 9. Visualize trips per weekday ---
+plt.figure(figsize=(8,4))
+sns.countplot(x="weekday", data=df, order=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"], color="lightgreen")
+plt.title("Distribution of Trips by Weekday")
+plt.xlabel("Day of Week")
+plt.ylabel("Number of Trips")
+plt.tight_layout()
+plt.show()
+
+
+## DAYTYPE: Indicates whether the trip occurred on a normal day, a holiday, or the day before a holiday. 
+print("\n=== DAY_TYPE Attribute Analysis ===")
+
+# --- Valid expected values ---
+valid_values = ["A", "B", "C"]
+
+# --- Identify missing and invalid values ---
+missing_daytype = df["DAY_TYPE"].isna().sum()
+invalid_daytype = (~df["DAY_TYPE"].isin(valid_values)) & df["DAY_TYPE"].notna()
+num_invalid = invalid_daytype.sum()
+
+# --- Count valid values ---
+valid_counts = df["DAY_TYPE"].value_counts(dropna=False)
+
+# --- Build summary table ---
+day_summary = pd.DataFrame({
+    "DAY_TYPE": ["A", "B", "C", "Invalid", "Missing"],
+    "Count": [
+        valid_counts.get("A", 0),
+        valid_counts.get("B", 0),
+        valid_counts.get("C", 0),
+        num_invalid,
+        missing_daytype
+    ]
+})
+
+# --- Add percentage column (ensure total = 100%) ---
+day_summary["Percent"] = (day_summary["Count"] / len(df) * 100).round(2)
+day_summary.loc[day_summary.index[-1], "Percent"] = round(
+    100 - day_summary["Percent"].iloc[:-1].sum(), 2
+)  # ensures total = 100%
+
+# --- Print clean summary table ---
+print(tabulate(day_summary, headers="keys", tablefmt="psql", showindex=False))
 
 
 
-
-
+# 4. Optional plot
+sns.countplot(x="DAY_TYPE", data=df, palette="pastel",
+              order=["A","B","C"])
+plt.title("Distribution of Trips by Day Type")
+plt.xlabel("Day Type (A=Normal, B=Holiday, C=Pre-Holiday)")
+plt.ylabel("Number of Trips")
+plt.tight_layout()
+plt.show()
 
 
 
