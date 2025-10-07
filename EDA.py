@@ -338,6 +338,9 @@ clean_df = clean_df[clean_df["POLYLINE"] != "[]"]
 after_poly = len(clean_df)
 print(f"• Dropped {before_poly - after_poly} rows with empty POLYLINE trajectories.")
 
+# --- Drop derived EDA columns I made in TIMESTAMP + POLYLINE analysis  ---
+clean_df = clean_df.drop(columns=["hour", "weekday", "n_points", "duration_min"], errors="ignore")
+
 # --- Save cleaned dataset ---
 clean_df.to_csv("cleaned_porto.csv", index=False)
 print(f"\n Cleaned dataset exported → cleaned_porto.csv (final rows: {len(clean_df):,})")
