@@ -15,3 +15,4 @@ venv/
 docker-compose.yml
 
 porto.csv
+cleaned_porto.csv
