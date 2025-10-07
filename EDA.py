@@ -244,6 +244,99 @@ plt.tight_layout()
 plt.show()
 
 
+## MISSING_DATA: Boolean ag indicating whether there are missing GPS points in the POLYLINE. 
+# FALSE means the data is complete, TRUE means some points are missing. 
+
+
+print("\n=== MISSING_DATA Attribute Analysis ===")
+
+# --- 1. Check value distribution ---
+missing_counts = df["MISSING_DATA"].value_counts(dropna=False)
+missing_percent = (missing_counts / len(df) * 100).round(2)
+
+# --- 2. Combine in table ---
+summary_missing = pd.DataFrame({
+    "MISSING_DATA": missing_counts.index.astype(str),
+    "Count": missing_counts.values,
+    "Percent": missing_percent.values
+}).reset_index(drop=True)
+
+# --- 3. Add check for invalid or blank values ---
+invalid_values = df[~df["MISSING_DATA"].isin([True, False])].shape[0]
+summary_missing.loc[len(summary_missing)] = ["Invalid", invalid_values, round(invalid_values / len(df) * 100, 2)]
+
+# --- 4. Print results ---
+print(tabulate(summary_missing, headers="keys", tablefmt="psql", showindex=False))
+
+
+## POLYLINE: A list of GPS points forming the trajectory. Each point is represented as [longitude, latitude], sampled at 15-second intervals. 
+
+import json
+
+print("\n=== POLYLINE Attribute Analysis ===")
+
+# --- Count missing and empty ---
+missing_poly = df["POLYLINE"].isna().sum()
+empty_poly = (df["POLYLINE"] == "[]").sum()
+valid_poly = len(df) - (missing_poly + empty_poly)
+
+# --- Consistency check ---
+poly_empty_and_flag_false = ((df["POLYLINE"] == "[]") & (df["MISSING_DATA"] == False)).sum()
+
+# --- Count GPS points per trajectory ---
+def count_points(polyline_str):
+    try:
+        return len(json.loads(polyline_str))
+    except:
+        return 0
+
+df["n_points"] = df["POLYLINE"].apply(count_points)
+df["duration_min"] = (df["n_points"] * 15) / 60  # each point = 15 sec
+
+# --- Compare MISSING_DATA True vs False ---
+summary_flag = (
+    df.groupby("MISSING_DATA")[["n_points", "duration_min"]]
+    .mean()
+    .rename(columns={"n_points": "avg_points", "duration_min": "avg_duration"})
+)
+
+# --- Print compact bullet summary ---
+print(f"• Total trips: {len(df):,}")
+print(f"• Empty trajectories: {empty_poly:,} ({empty_poly/len(df)*100:.2f}%)")
+print(f"• Valid trajectories: {valid_poly/len(df)*100:.2f}%")
+print(f"• Average trip: {df['n_points'].mean():.0f} GPS points (~{df['duration_min'].mean():.0f} min)")
+print(f"• Median trip: {df['n_points'].median():.0f} GPS points")
+print(f"• Trips with MISSING_DATA=True: "
+      f"{summary_flag.loc[True, 'avg_points']:.0f} GPS points (~{summary_flag.loc[True, 'avg_duration']:.0f} min)")
+print(f"• Trips with MISSING_DATA=False: "
+      f"{summary_flag.loc[False, 'avg_points']:.0f} GPS points (~{summary_flag.loc[False, 'avg_duration']:.0f} min)")
+print(f"• Rows where POLYLINE='[]' but MISSING_DATA=False: {poly_empty_and_flag_false}")
+
+
+# ta vekk?:
+# --- 6️⃣ Visualize trajectory length distribution ---
+plt.figure(figsize=(8,4))
+sns.histplot(df["n_points"], bins=50, color="skyblue", kde=False)
+plt.title("Distribution of Number of GPS Points per Trip")
+plt.xlabel("Number of GPS Points")
+plt.ylabel("Count of Trips")
+plt.xlim(0, 200)  # crop extreme outliers for better readability
+plt.tight_layout()
+plt.show()
+
+# --- 7️⃣ Visualize trip duration (minutes) ---
+plt.figure(figsize=(8,4))
+sns.histplot(df["duration_min"], bins=50, color="lightgreen", kde=False)
+plt.title("Distribution of Trip Duration (minutes)")
+plt.xlabel("Duration (minutes)")
+plt.ylabel("Count of Trips")
+plt.xlim(0, 60)
+plt.tight_layout()
+plt.show()
+
+
+
+
 
 """ # 1. Undersøk alle kolonner
 print("\n=== COLUMN INFORMATION ===")
