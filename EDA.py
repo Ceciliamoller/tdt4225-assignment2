@@ -28,9 +28,8 @@ n_missing = df["TRIP_ID"].isna().sum()
 trip_id_summary = pd.DataFrame({
     "Total Rows": [n_rows],
     "Unique TRIP_IDs": [n_unique],
-    "Duplicate TRIP_IDs": [n_duplicates],
-    "Missing TRIP_IDs": [n_missing],
-    "Is Unique?": ["Yes" if n_unique == n_rows else "No"]
+    "Duplicate (Not Unique) TRIP_IDs": [n_duplicates],
+    "Missing TRIP_IDs": [n_missing]
 })
 
 # --- Print nice table ---
@@ -40,7 +39,6 @@ print(tabulate(trip_id_summary, headers="keys", tablefmt="psql", showindex=False
 
 ## CALL_TYPE: Code indicating how the trip was initiated. 
 
-# --- 1. Inspect unique values and counts
 # --- 1. Inspect unique values and counts
 call_counts = df["CALL_TYPE"].value_counts(dropna=False)
 call_percent = df["CALL_TYPE"].value_counts(normalize=True, dropna=False) * 100
@@ -270,7 +268,6 @@ print(tabulate(summary_missing, headers="keys", tablefmt="psql", showindex=False
 
 
 ## POLYLINE: A list of GPS points forming the trajectory. Each point is represented as [longitude, latitude], sampled at 15-second intervals. 
-
 import json
 
 print("\n=== POLYLINE Attribute Analysis ===")
@@ -312,6 +309,41 @@ print(f"• Trips with MISSING_DATA=False: "
       f"{summary_flag.loc[False, 'avg_points']:.0f} GPS points (~{summary_flag.loc[False, 'avg_duration']:.0f} min)")
 print(f"• Rows where POLYLINE='[]' but MISSING_DATA=False: {poly_empty_and_flag_false}")
 
+''' 
+
+# Spatial visualization inspired by tip from assignment pdf
+import pptk
+
+# --- 1. Select a few random valid trips (non-empty POLYLINEs)
+sample_trips = df[df["POLYLINE"] != "[]"].sample(5, random_state=42)
+
+# --- 2. Collect all points from those trips into one array
+all_points = []
+
+for poly in sample_trips["POLYLINE"]:
+    try:
+        coords = np.array(ast.literal_eval(poly))  # convert text → [[lon, lat], ...]
+        if len(coords) > 0:
+            # Add each coordinate with z=0 for flat view
+            all_points.append(np.c_[coords[:, 0], coords[:, 1], np.zeros(len(coords))])
+    except Exception:
+        continue
+
+# --- 3. Merge all points into one array for visualization
+if len(all_points) > 0:
+    P = np.vstack(all_points)
+else:
+    print("No valid POLYLINE data found.")
+
+# --- 4. Visualize with pptk
+v = pptk.viewer(P)
+v.set(point_size=0.002)
+v.color_map('jet')
+
+print("\n=== POLYLINE Spatial Visualization ===")
+print("Showing 5 random taxi trajectories in Porto.")
+print("Use mouse + Shift to pan, scroll to zoom, 5 for orthographic, 7 for top-down view.")
+'''
 
 # ta vekk?:
 # --- 6️⃣ Visualize trajectory length distribution ---
