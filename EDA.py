@@ -310,41 +310,6 @@ print(f"• Trips with MISSING_DATA=False: "
 print(f"• Rows where POLYLINE='[]' but MISSING_DATA=False: {poly_empty_and_flag_false}")
 
 ''' 
-
-# Spatial visualization inspired by tip from assignment pdf
-import pptk
-
-# --- 1. Select a few random valid trips (non-empty POLYLINEs)
-sample_trips = df[df["POLYLINE"] != "[]"].sample(5, random_state=42)
-
-# --- 2. Collect all points from those trips into one array
-all_points = []
-
-for poly in sample_trips["POLYLINE"]:
-    try:
-        coords = np.array(ast.literal_eval(poly))  # convert text → [[lon, lat], ...]
-        if len(coords) > 0:
-            # Add each coordinate with z=0 for flat view
-            all_points.append(np.c_[coords[:, 0], coords[:, 1], np.zeros(len(coords))])
-    except Exception:
-        continue
-
-# --- 3. Merge all points into one array for visualization
-if len(all_points) > 0:
-    P = np.vstack(all_points)
-else:
-    print("No valid POLYLINE data found.")
-
-# --- 4. Visualize with pptk
-v = pptk.viewer(P)
-v.set(point_size=0.002)
-v.color_map('jet')
-
-print("\n=== POLYLINE Spatial Visualization ===")
-print("Showing 5 random taxi trajectories in Porto.")
-print("Use mouse + Shift to pan, scroll to zoom, 5 for orthographic, 7 for top-down view.")
-'''
-
 # ta vekk?:
 # --- 6️⃣ Visualize trajectory length distribution ---
 plt.figure(figsize=(8,4))
@@ -365,7 +330,7 @@ plt.ylabel("Count of Trips")
 plt.xlim(0, 60)
 plt.tight_layout()
 plt.show()
-
+'''
 
 
 
@@ -521,8 +486,67 @@ other_stats = [
     ["NULL ORIGIN_CALLs", df["ORIGIN_CALL"].isnull().sum()],
     ["NULL ORIGIN_STANDs", df["ORIGIN_STAND"].isnull().sum()],
 ]
-print(tabulate(other_stats, headers=["Metric", "Count"], tablefmt="grid")) """
+print(tabulate(other_stats, headers=["Metric", "Count"], tablefmt="grid")) 
 
 
 # TRIP_ID — Trip Identifier
-df["TRIP_ID"].duplicated().sum()
+df["TRIP_ID"].duplicated().sum() --SKAL DENNE MED?
+"""
+
+# ===============================================================
+# 🧹 DATA CLEANING FOR MYSQL INSERTION
+# ===============================================================
+print("\n=== DATA CLEANING ===")
+
+clean_df = df.copy()
+
+# --- 1. TRIP_ID ---
+# Drop 81 duplicates to ensure each trip_id is unique
+clean_df = clean_df.drop_duplicates(subset="TRIP_ID")
+print("• Dropped duplicate TRIP_IDs → now unique.")
+
+# --- 2. CALL_TYPE ---
+# No issue found — keep as is
+print("• CALL_TYPE: no changes needed.")
+
+# --- 3. ORIGIN_CALL ---
+# No issues found — keep as is
+print("• ORIGIN_CALL: no changes needed.")
+
+# --- 4. ORIGIN_STAND ---
+# Found 11,302 missing for CALL_TYPE = 'B' → drop those rows
+before = len(clean_df)
+clean_df = clean_df[~((clean_df["CALL_TYPE"] == "B") & (clean_df["ORIGIN_STAND"].isna()))]
+after = len(clean_df)
+print(f"• Dropped {before - after} rows where CALL_TYPE='B' but ORIGIN_STAND was missing.")
+
+# --- 5. TAXI_ID ---
+# No issue found
+print("• TAXI_ID: no changes needed.")
+
+# --- 6. TIMESTAMP ---
+# Convert Unix timestamp → readable datetime (important for SQL)
+clean_df["DATETIME"] = pd.to_datetime(clean_df["TIMESTAMP"], unit="s", errors="coerce")
+print("• Converted TIMESTAMP → DATETIME for database queries.")
+
+# --- 7. DAY_TYPE ---
+# No issue found
+print("• DAY_TYPE: no changes needed.")
+
+# --- 8. MISSING_DATA ---
+# Only 10 out of 1.7M rows had missing GPS data
+# → Keep them (important info for analysis later)
+print("• MISSING_DATA: retained (only 10 rows had True).")
+
+# --- 9. POLYLINE ---
+# Found 5901 empty trajectories ('[]') → drop those
+before_poly = len(clean_df)
+clean_df = clean_df[clean_df["POLYLINE"] != "[]"]
+after_poly = len(clean_df)
+print(f"• Dropped {before_poly - after_poly} rows with empty POLYLINE trajectories.")
+
+# --- Save cleaned dataset ---
+clean_df.to_csv("cleaned_porto.csv", index=False)
+print(f"\n✅ Cleaned dataset exported → cleaned_porto.csv (final rows: {len(clean_df):,})")
+
+
