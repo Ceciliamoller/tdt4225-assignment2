@@ -309,6 +309,47 @@ print(f"• Trips with MISSING_DATA=False: "
       f"{summary_flag.loc[False, 'avg_points']:.0f} GPS points (~{summary_flag.loc[False, 'avg_duration']:.0f} min)")
 print(f"• Rows where POLYLINE='[]' but MISSING_DATA=False: {poly_empty_and_flag_false}")
 
+
+print("\n=== DATA CLEANING ===")
+
+clean_df = df.copy()
+
+# --- 1. TRIP_ID ---
+# Drop 81 duplicates to ensure each trip_id is unique
+clean_df = clean_df.drop_duplicates(subset="TRIP_ID")
+print("• Dropped duplicate TRIP_IDs → now unique.")
+
+# --- 4. ORIGIN_STAND ---
+# Found 11,302 missing for CALL_TYPE = 'B' → drop those rows
+before = len(clean_df)
+clean_df = clean_df[~((clean_df["CALL_TYPE"] == "B") & (clean_df["ORIGIN_STAND"].isna()))] # ~ (...) = Logical NOT
+after = len(clean_df)
+print(f"• Dropped {before - after} rows where CALL_TYPE='B' but ORIGIN_STAND was missing.")
+
+# --- 6. TIMESTAMP ---
+# Convert Unix timestamp → readable datetime (important for SQL) # did this above also?? fix?
+clean_df["DATETIME"] = pd.to_datetime(clean_df["TIMESTAMP"], unit="s", errors="coerce")
+print("• Converted TIMESTAMP → DATETIME for database queries.")
+
+# --- 9. POLYLINE ---
+# Found 5901 empty trajectories ('[]') → drop those
+before_poly = len(clean_df)
+clean_df = clean_df[clean_df["POLYLINE"] != "[]"]
+after_poly = len(clean_df)
+print(f"• Dropped {before_poly - after_poly} rows with empty POLYLINE trajectories.")
+
+# --- Drop derived EDA columns I made in TIMESTAMP + POLYLINE analysis  ---
+clean_df = clean_df.drop(columns=["hour", "weekday", "n_points", "duration_min"], errors="ignore")
+
+# --- Save cleaned dataset ---
+clean_df.to_csv("cleaned_porto.csv", index=False)
+print(f"\n Cleaned dataset exported → cleaned_porto.csv (final rows: {len(clean_df):,})")
+
+
+
+
+
+
 ''' 
 
 # Spatial visualization inspired by tip from assignment pdf
@@ -521,8 +562,9 @@ other_stats = [
     ["NULL ORIGIN_CALLs", df["ORIGIN_CALL"].isnull().sum()],
     ["NULL ORIGIN_STANDs", df["ORIGIN_STAND"].isnull().sum()],
 ]
-print(tabulate(other_stats, headers=["Metric", "Count"], tablefmt="grid")) """
+print(tabulate(other_stats, headers=["Metric", "Count"], tablefmt="grid")) 
 
 
 # TRIP_ID — Trip Identifier
-df["TRIP_ID"].duplicated().sum()
+df["TRIP_ID"].duplicated().sum() - ok at dette kommenteres ut??just
+"""
