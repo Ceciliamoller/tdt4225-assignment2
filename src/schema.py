@@ -27,7 +27,7 @@ def main():
         print(f"Applying schema from {SCHEMA_FILE} …")
         run_sql_file(cursor, sql_text)
         db.db_connection.commit()
-        print("✅ Schema applied.")
+        print("Schema applied.")
         # quick sanity check
         cursor.execute("SHOW TABLES;")
         tables = [row[0] for row in cursor.fetchall()]

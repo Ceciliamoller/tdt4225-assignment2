@@ -25,3 +25,4 @@ data/processed/
 
 # === Docker ===
 *.log
+docker-compose.yml
