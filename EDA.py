@@ -4,12 +4,18 @@ import matplotlib.pyplot as plt
 from tabulate import tabulate
 import json
 import seaborn as sns
-import matplotlib.pyplot as plt
 
 
 # Last inn CSV
-df = pd.read_csv("porto.csv")  # eller hva filen heter
 
+import os
+print(os.getcwd()) # sjekk at du er i riktig mappe
+
+
+CSV = "data/raw/porto.csv" # sjekk at filen er lagret her
+df = pd.read_csv(CSV)
+
+ 
 print("=" * 80)
 print("DATASET OVERVIEW")
 print("=" * 80)
@@ -268,7 +274,6 @@ print(tabulate(summary_missing, headers="keys", tablefmt="psql", showindex=False
 
 
 ## POLYLINE: A list of GPS points forming the trajectory. Each point is represented as [longitude, latitude], sampled at 15-second intervals. 
-import json
 
 print("\n=== POLYLINE Attribute Analysis ===")
 
@@ -309,262 +314,3 @@ print(f"• Trips with MISSING_DATA=False: "
       f"{summary_flag.loc[False, 'avg_points']:.0f} GPS points (~{summary_flag.loc[False, 'avg_duration']:.0f} min)")
 print(f"• Rows where POLYLINE='[]' but MISSING_DATA=False: {poly_empty_and_flag_false}")
 
-
-print("\n=== DATA CLEANING ===")
-
-clean_df = df.copy()
-
-# --- 1. TRIP_ID ---
-# Drop 81 duplicates to ensure each trip_id is unique
-clean_df = clean_df.drop_duplicates(subset="TRIP_ID")
-print("• Dropped duplicate TRIP_IDs → now unique.")
-
-# --- 4. ORIGIN_STAND ---
-# Found 11,302 missing for CALL_TYPE = 'B' → drop those rows
-before = len(clean_df)
-clean_df = clean_df[~((clean_df["CALL_TYPE"] == "B") & (clean_df["ORIGIN_STAND"].isna()))] # ~ (...) = Logical NOT
-after = len(clean_df)
-print(f"• Dropped {before - after} rows where CALL_TYPE='B' but ORIGIN_STAND was missing.")
-
-# --- 6. TIMESTAMP ---
-# Convert Unix timestamp → readable datetime (important for SQL) # did this above also?? fix?
-clean_df["DATETIME"] = pd.to_datetime(clean_df["TIMESTAMP"], unit="s", errors="coerce")
-print("• Converted TIMESTAMP → DATETIME for database queries.")
-
-# --- 9. POLYLINE ---
-# Found 5901 empty trajectories ('[]') → drop those
-before_poly = len(clean_df)
-clean_df = clean_df[clean_df["POLYLINE"] != "[]"]
-after_poly = len(clean_df)
-print(f"• Dropped {before_poly - after_poly} rows with empty POLYLINE trajectories.")
-
-# --- Drop derived EDA columns I made in TIMESTAMP + POLYLINE analysis  ---
-clean_df = clean_df.drop(columns=["hour", "weekday", "n_points", "duration_min"], errors="ignore")
-
-# --- Save cleaned dataset ---
-clean_df.to_csv("cleaned_porto.csv", index=False)
-print(f"\n Cleaned dataset exported → cleaned_porto.csv (final rows: {len(clean_df):,})")
-
-
-
-
-
-
-''' 
-
-# Spatial visualization inspired by tip from assignment pdf
-import pptk
-
-# --- 1. Select a few random valid trips (non-empty POLYLINEs)
-sample_trips = df[df["POLYLINE"] != "[]"].sample(5, random_state=42)
-
-# --- 2. Collect all points from those trips into one array
-all_points = []
-
-for poly in sample_trips["POLYLINE"]:
-    try:
-        coords = np.array(ast.literal_eval(poly))  # convert text → [[lon, lat], ...]
-        if len(coords) > 0:
-            # Add each coordinate with z=0 for flat view
-            all_points.append(np.c_[coords[:, 0], coords[:, 1], np.zeros(len(coords))])
-    except Exception:
-        continue
-
-# --- 3. Merge all points into one array for visualization
-if len(all_points) > 0:
-    P = np.vstack(all_points)
-else:
-    print("No valid POLYLINE data found.")
-
-# --- 4. Visualize with pptk
-v = pptk.viewer(P)
-v.set(point_size=0.002)
-v.color_map('jet')
-
-print("\n=== POLYLINE Spatial Visualization ===")
-print("Showing 5 random taxi trajectories in Porto.")
-print("Use mouse + Shift to pan, scroll to zoom, 5 for orthographic, 7 for top-down view.")
-'''
-
-# ta vekk?:
-# --- 6️⃣ Visualize trajectory length distribution ---
-plt.figure(figsize=(8,4))
-sns.histplot(df["n_points"], bins=50, color="skyblue", kde=False)
-plt.title("Distribution of Number of GPS Points per Trip")
-plt.xlabel("Number of GPS Points")
-plt.ylabel("Count of Trips")
-plt.xlim(0, 200)  # crop extreme outliers for better readability
-plt.tight_layout()
-plt.show()
-
-# --- 7️⃣ Visualize trip duration (minutes) ---
-plt.figure(figsize=(8,4))
-sns.histplot(df["duration_min"], bins=50, color="lightgreen", kde=False)
-plt.title("Distribution of Trip Duration (minutes)")
-plt.xlabel("Duration (minutes)")
-plt.ylabel("Count of Trips")
-plt.xlim(0, 60)
-plt.tight_layout()
-plt.show()
-
-
-
-
-
-""" # 1. Undersøk alle kolonner
-print("\n=== COLUMN INFORMATION ===")
-info_data = []
-for col in df.columns:
-    info_data.append(
-        [
-            col,
-            df[col].dtype,
-            df[col].isnull().sum(),
-            f"{df[col].isnull().sum() / len(df) * 100:.2f}%",
-        ]
-    )
-print(
-    tabulate(
-        info_data, headers=["Column", "Type", "Missing", "% Missing"], tablefmt="grid"
-    )
-) """
-
-""" # 2. Analyser TRIP_ID
-print("\n=== TRIP_ID ANALYSIS ===")
-trip_stats = [
-    ["Total trips", len(df)],
-    ["Unique TRIP_IDs", df["TRIP_ID"].nunique()],
-    ["Duplicate TRIP_IDs", len(df) - df["TRIP_ID"].nunique()],
-]
-print(tabulate(trip_stats, headers=["Metric", "Count"], tablefmt="grid")) """
-
-""" # 3. Analyser CALL_TYPE
-print("\n=== CALL_TYPE DISTRIBUTION ===")
-call_type = df["CALL_TYPE"].value_counts(dropna=False).reset_index()
-call_type.columns = ["Call Type", "Count"]
-call_type["Percentage"] = (call_type["Count"] / len(df) * 100).round(2)
-
-# Erstatt NaN med "Missing" for bedre lesbarhet
-call_type["Call Type"] = call_type["Call Type"].fillna("Missing/NULL")
-
-print(tabulate(call_type, headers="keys", tablefmt="grid", showindex=False))
-
-
-def analyze_categorical_with_plot(df, column_name, title):
-    print(f"\n=== {title} ===")
-
-    # Tell verdier inkludert missing
-    dist = df[column_name].value_counts(dropna=False).reset_index()
-    dist.columns = [column_name, "Count"]
-    dist["Percentage"] = (dist["Count"] / len(df) * 100).round(2)
-
-    # Erstatt NaN med lesbart navn
-    dist[column_name] = dist[column_name].fillna("Missing/NULL")
-
-    print(tabulate(dist, headers="keys", tablefmt="grid", showindex=False))
-
-    # Ekstra info om missing
-    missing = df[column_name].isnull().sum()
-    if missing > 0:
-        print(
-            f"Warning: {missing} rows ({missing/len(df)*100:.2f}%) have missing {column_name}"
-        )
-
-    # Visualisering med seaborn
-    plt.figure(figsize=(10, 6))
-    sns.barplot(
-        data=dist,
-        x=column_name,
-        y="Count",
-        palette="viridis",
-        hue=column_name,
-        legend=False,
-    )
-    plt.xlabel(column_name, fontsize=12)
-    plt.ylabel("Count", fontsize=12)
-    plt.title(f"{title}", fontsize=14, fontweight="bold")
-    plt.xticks(rotation=45, ha="right")
-
-    # Legg til prosentverdier på toppen av hver bar
-    for i, (val, pct) in enumerate(zip(dist["Count"], dist["Percentage"])):
-        plt.text(i, val, f"{pct}%", ha="center", va="bottom", fontsize=10)
-
-    plt.tight_layout()
-    plt.savefig(f"{column_name}_distribution.png", dpi=300, bbox_inches="tight")
-    plt.show()
-    print(f"Plot saved as '{column_name}_distribution.png'\n")
-
-
-# Bruk funksjonen:
-analyze_categorical_with_plot(df, "CALL_TYPE", "CALL_TYPE DISTRIBUTION")
-analyze_categorical_with_plot(df, "DAY_TYPE", "DAY_TYPE DISTRIBUTION") """
-
-
-""" # 4. Analyser DAY_TYPE
-print("\n=== DAY_TYPE DISTRIBUTION ===")
-day_type = df["DAY_TYPE"].value_counts().reset_index()
-day_type.columns = ["Day Type", "Count"]
-day_type["Percentage"] = (day_type["Count"] / len(df) * 100).round(2)
-print(tabulate(day_type, headers="keys", tablefmt="grid", showindex=False))
-
-# 5. VIKTIGST: Analyser POLYLINE (trajectories)
-print("\n=== POLYLINE ANALYSIS ===")
-
-# Telle missing/empty
-missing_polyline = df["POLYLINE"].isnull().sum()
-empty_polyline = (df["POLYLINE"] == "[]").sum()
-valid_polyline = len(df) - missing_polyline - empty_polyline
-
-polyline_summary = [
-    ["Missing (NaN)", missing_polyline, f"{missing_polyline/len(df)*100:.2f}%"],
-    ["Empty ([])", empty_polyline, f"{empty_polyline/len(df)*100:.2f}%"],
-    ["Valid trajectories", valid_polyline, f"{valid_polyline/len(df)*100:.2f}%"],
-    ["Total", len(df), "100.00%"],
-]
-print(
-    tabulate(
-        polyline_summary, headers=["Status", "Count", "Percentage"], tablefmt="grid"
-    )
-)
-
-
-# Analyser lengde på trajectories
-def get_trajectory_length(polyline):
-    if pd.isna(polyline) or polyline == "[]":
-        return 0
-    try:
-        coords = json.loads(polyline)
-        return len(coords)
-    except:
-        return 0
-
-
-df["traj_length"] = df["POLYLINE"].apply(get_trajectory_length)
-
-print("\n=== TRAJECTORY LENGTH STATISTICS ===")
-stats = df["traj_length"].describe()
-stats_table = [[stat, f"{value:.2f}"] for stat, value in stats.items()]
-print(tabulate(stats_table, headers=["Statistic", "Value"], tablefmt="grid"))
-
-# 6. Analyser MISSING_DATA flag
-print("\n=== MISSING_DATA FLAG ===")
-missing_flag = df["MISSING_DATA"].value_counts().reset_index()
-missing_flag.columns = ["Flag", "Count"]
-missing_flag["Percentage"] = (missing_flag["Count"] / len(df) * 100).round(2)
-print(tabulate(missing_flag, headers="keys", tablefmt="grid", showindex=False))
-
-# 7. Analyser andre kolonner (TAXI_ID, ORIGIN_CALL, etc.)
-print("\n=== OTHER ATTRIBUTES ===")
-other_stats = [
-    ["Unique Taxis", df["TAXI_ID"].nunique()],
-    ["Unique ORIGIN_CALLs", df["ORIGIN_CALL"].nunique()],
-    ["Unique ORIGIN_STANDs", df["ORIGIN_STAND"].nunique()],
-    ["NULL ORIGIN_CALLs", df["ORIGIN_CALL"].isnull().sum()],
-    ["NULL ORIGIN_STANDs", df["ORIGIN_STAND"].isnull().sum()],
-]
-print(tabulate(other_stats, headers=["Metric", "Count"], tablefmt="grid")) 
-
-
-# TRIP_ID — Trip Identifier
-df["TRIP_ID"].duplicated().sum() - ok at dette kommenteres ut??just
-"""
