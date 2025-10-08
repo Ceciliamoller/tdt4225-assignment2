@@ -1,18 +1,27 @@
-# Ignore local environment and config
-.env
 
-# Ignore Python cache and compiled files
+# === Environment & secrets ===
+.env
+*.env
+
+# === Python ===
 __pycache__/
 *.pyc
-
-# Ignore virtual environments
 .venv/
+.env/
 venv/
+.ipynb_checkpoints/
 
-# Ignore OS junk files
+# === Data files ===
+data/*.csv
+data/*.zip
+data/*.json
+data/raw/
+data/processed/
+
+# === System / Editor ===
 .DS_Store
+.vscode/
+.idea/
 
-docker-compose.yml
-
-porto.csv
-cleaned_porto.csv
+# === Docker ===
+*.log
