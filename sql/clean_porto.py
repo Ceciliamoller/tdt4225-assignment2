@@ -1,44 +1,77 @@
+import json
 import pandas as pd
 from pathlib import Path
 
-RAW = Path("data/raw/porto.csv") # sjekk at filen er lagret her
+RAW = Path("data/raw/porto.csv")
 OUT_DIR = Path("data/processed")
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+def polyline_len(poly):
+    """Return number of GPS points in a POLYLINE string."""
+    if isinstance(poly, str):
+        try:
+            return len(json.loads(poly))
+        except Exception:
+            return 0
+    return 0
 
 def main():
     print("Loading:", RAW)
     df = pd.read_csv(RAW)
 
-    print("\n=== DATA CLEANING ===")
-    clean_df = df.copy()
+    # --- Cleaning rules ---
 
-    # 1) TRIP_ID — drop duplicates
-    before = len(clean_df)
-    clean_df = clean_df.drop_duplicates(subset="TRIP_ID")
-    print(f"• Dropped duplicate TRIP_IDs → {before - len(clean_df)} rows removed.")
+    df = df[df["POLYLINE"] != "[]"].copy()
 
-    # 2) ORIGIN_STAND rule for CALL_TYPE='B' — drop rows with missing stand
-    before = len(clean_df)
-    mask = (clean_df["CALL_TYPE"] == "B") & (clean_df["ORIGIN_STAND"].isna())
-    clean_df = clean_df[~mask]
-    print(f"• Dropped {before - len(clean_df)} rows where CALL_TYPE='B' but ORIGIN_STAND was missing.")
+    df = df[df["MISSING_DATA"] == False].copy()
 
-    # 3) TIMESTAMP → DATETIME
-    clean_df["DATETIME"] = pd.to_datetime(clean_df["TIMESTAMP"], unit="s", errors="coerce")
-    print("• Converted TIMESTAMP → DATETIME.")
+    df["__n_points"] = df["POLYLINE"].apply(polyline_len)
+    idx = df.groupby("TRIP_ID")["__n_points"].idxmax()
+    df = df.loc[idx].copy()
 
-    # 4) POLYLINE — drop empty '[]'
-    before_poly = len(clean_df)
-    clean_df = clean_df[clean_df["POLYLINE"] != "[]"]
-    print(f"• Dropped {before_poly - len(clean_df)} rows with empty POLYLINE trajectories.")
+    df["DATETIME"] = pd.to_datetime(df["TIMESTAMP"], unit="s", errors="coerce")
 
-    # 5) Remove any temporary EDA columns if present
-    clean_df = clean_df.drop(columns=["hour", "weekday", "n_points", "duration_min"], errors="ignore")
+    df["points_count"] = df["__n_points"].astype("int64")
+    df["duration_s"] = (df["points_count"].clip(lower=1) - 1) * 15
 
-    # Save cleaned dataset
-    out_file = OUT_DIR / "porto.cleaned.csv"
-    clean_df.to_csv(out_file, index=False)
-    print(f"\nCleaned dataset exported → {out_file} (final rows: {len(clean_df):,})")
+    def first_last(poly):
+        pts = json.loads(poly)
+        lon0, lat0 = pts[0]
+        lonN, latN = pts[-1]
+        return pd.Series([lon0, lat0, lonN, latN])
+
+    df[["start_lon", "start_lat", "end_lon", "end_lat"]] = df["POLYLINE"].apply(first_last)
+
+    trips_cols = [
+        "TRIP_ID", "TAXI_ID", "CALL_TYPE", "ORIGIN_CALL", "ORIGIN_STAND",
+        "DATETIME", "DAY_TYPE", "MISSING_DATA",
+        "points_count", "duration_s", "start_lon", "start_lat", "end_lon", "end_lat", "POLYLINE"
+    ]
+    trips_out = df[trips_cols].rename(columns={
+        "TRIP_ID": "trip_id",
+        "TAXI_ID": "taxi_id",
+        "CALL_TYPE": "call_type",
+        "ORIGIN_CALL": "origin_call",
+        "ORIGIN_STAND": "origin_stand",
+        "DATETIME": "start_ts",
+        "DAY_TYPE": "day_type",
+        "MISSING_DATA": "missing_data",
+    })
+
+    trips_path = OUT_DIR / "porto_trips.cleaned.csv"
+    trips_out.to_csv(trips_path, index=False)
+    print(f"→ {trips_path}  rows={len(trips_out):,}")
+
+    rows = []
+    for trip_id, start_ts, poly in zip(trips_out["trip_id"], trips_out["start_ts"], df["POLYLINE"]):
+        pts = json.loads(poly)
+        for i, (lon, lat) in enumerate(pts):
+            rows.append((trip_id, i, start_ts + pd.to_timedelta(15 * i, unit="s"), lon, lat))
+
+    points = pd.DataFrame(rows, columns=["trip_id", "seq_idx", "ts", "lon", "lat"])
+    points_path = OUT_DIR / "porto_trip_points.cleaned.csv"
+    points.to_csv(points_path, index=False)
+    print(f"→ {points_path} rows={len(points):,}")
 
 if __name__ == "__main__":
     main()
