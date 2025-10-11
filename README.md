@@ -52,3 +52,14 @@ Outputs
 - data/processed/porto_trip_points.cleaned.csv
 -> one row per GPS point with trip_id, seq_idx, ts, lon, lat
 
+### Data loading
+
+The data loading script uses bulk loading to insert all cleaned data into the database efficiently.
+
+#### Run the loader
+
+```bash
+python sql/load_data.py
+```
+
+
