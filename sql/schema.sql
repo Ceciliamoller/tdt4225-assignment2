@@ -58,5 +58,15 @@ CREATE TABLE IF NOT EXISTS trip_points (
   INDEX ix_points_ts (ts),
   SPATIAL INDEX sp_points (pt),
 
-  CONSTRAINT fk_points_trip FOREIGN KEY (trip_id) REFERENCES trips(trip_id)
+  CONSTRAINT fk_points_trip
+    FOREIGN KEY (trip_id) REFERENCES trips(trip_id)
+    ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+
+
+
+
+
+
+
